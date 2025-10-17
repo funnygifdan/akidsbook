@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Everything Helps — Buddy’s Book (v10)</title>
+<style>
+:root{
+  --bg:#000;
+  --paper:#eadcc1;   /* page color */
+  --ink:#111;        /* text color */
+  --glow: rgba(0,255,0,.35);
+}
+
+*{box-sizing:border-box}
+html,body{
+  margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
+  overflow:hidden;-webkit-tap-highlight-color:transparent; user-select:none;
+}
+
+/* subtle neon-ish backdrop */
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;
+  background:
+    radial-gradient(1000px 560px at 50% 82%,rgba(0,255,0,.05),transparent 60%),
+    radial-gradient(700px 380px at 18% 12%,rgba(0,255,0,.03),transparent 60%),
+    #000;
+}
+
+/* STAGE */
+.stage{position:fixed;inset:0;display:grid;place-items:center;z-index:1}
+
+/* Bigger book by default */
+.view{
+  width:min(98vw,640px);
+  height:min(90vh,1024px);
+  perspective:2000px; touch-action:none; cursor:grab;
+}
+.view.grabbing{cursor:grabbing}
+
+/* On small screens, still give it some size */
+@media (max-width:420px){
+  .view{ width:96vw; height:92vh; }
+}
+
+/* BOOK */
+.book{
+  position:relative;width:100%;height:100%;transform-style:preserve-3d;
+  transform:rotateX(8deg) rotateY(-18deg);
+  transition:transform .6s cubic-bezier(.2,.7,.1,1);
+  box-shadow:0 44px 140px rgba(0,0,0,.75); border-radius:12px;
+  will-change:transform;
+}
+.book.open{transform:rotateX(0) rotateY(0)}
+
+.cover,.back{
+  position:absolute; inset:0; border-radius:12px;
+  background:linear-gradient(145deg,#2a2a2a,#111);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.06);
+  transform-style:preserve-3d;
+}
+.cover{
+  transform-origin:left center; transform:translateZ(6px) rotateY(0);
+  z-index:5; backface-visibility:hidden; -webkit-backface-visibility:hidden;
+  overflow:hidden;
+}
+.book.open .cover{
+  transform:translateZ(6px) rotateY(-170deg);
+  transition:transform .7s cubic-bezier(.2,.7,.1,1);
+}
+.back{ transform-origin:right center; transform:translateZ(-6px) }
+
+/* COVER CONTENT */
+.title-wrap{
+  position:absolute; inset:0; display:grid; place-items:center;
+  color:#f4f4f4; text-align:center; padding:28px;
+}
+.title-wrap h1{margin:0 0 8px; font-size:clamp(24px,6.5vw,38px)}
+.title-wrap h2{margin:0; font-size:clamp(12px,3.5vw,16px); opacity:.9}
+.hint{position:absolute; bottom:14px; left:0; right:0; text-align:center; color:#ccc; font-size:12px; opacity:.85}
+
+/* Optional overlay image (logo/silhouette) */
+.cover .overlay{
+  position:absolute; inset:auto; left:50%; top:46%;
+  transform:translate(-50%,-50%);
+  max-width:72%; height:auto; opacity:.95; filter:drop-shadow(0 0 14px var(--glow));
+  pointer-events:none; user-select:none;
+  border-radius:8px;
+}
+
+/* Gentle title glow */
+@keyframes pulse { 0%,100%{ text-shadow:0 0 0 transparent } 50%{ text-shadow:0 0 16px rgba(0,255,0,.35) } }
+.title-wrap h1{ animation:pulse 3s ease-in-out infinite }
+
+/* PAGES STACK */
+.folio{
+  position:absolute; inset:12px; left:14px; right:14px;
+  transform-style:preserve-3d; overflow:hidden;
+}
+.leaf{
+  position:absolute; inset:0; transform-style:preserve-3d;
+  will-change:transform;
+}
+
+.page{
+  position:absolute; top:0; bottom:0; width:50%;
+  background:var(--paper); border-radius:8px; overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);
+  backface-visibility:hidden; -webkit-backface-visibility:hidden;
+  transform-style:preserve-3d;
+}
+.page.left { left:0;  transform-origin:right center; }
+.page.right{ right:0; transform-origin:left  center;  }
+
+/* right sheet rotates to the left when leaf is flipped */
+.leaf .right{
+  transform:rotateY(0deg) translateZ(1px);
+  transition:transform .68s cubic-bezier(.2,.7,.1,1);
+}
+.leaf.flipped .right{
+  transform:rotateY(-180deg) translateZ(1px);
+  pointer-events:none; /* prevent accidental taps during flip */
+}
+
+/* fold shading (prevents “letter overlap” flicker) */
+.page.right::after{
+  content:""; position:absolute; inset:0;
+  background:linear-gradient(90deg, rgba(0,0,0,.08), transparent 35%);
+  pointer-events:none;
+}
+.leaf.flipped .page.right::after{
+  background:linear-gradient(270deg, rgba(0,0,0,.10), transparent 35%);
+}
+
+/* page content */
+.paper{
+  position:absolute; inset:0; padding:26px 22px 26px;
+  overflow:auto; line-height:1.6; font-size:clamp(14px,3.4vw,18px);
+}
+.paper h3{margin:0 0 8px; font-size:clamp(16px,4vw,20px)}
+.paper p{margin:10px 0}
+.section-label{
+  position:absolute; top:10px; left:12px; font-size:10px;
+  opacity:.55; letter-spacing:.12em; text-transform:uppercase;
+}
+
+/* helper */
+.footer{position:fixed; bottom:10px; left:50%; transform:translateX(-50%);
+  color:#777; font-size:12px; z-index:2}
+@media(max-width:420px){ .paper{padding:20px} }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="view" id="view" aria-label="book view">
+    <div class="book" id="book">
+      <div class="cover" id="frontCover">
+        <!-- OPTIONAL overlay image (set via JS or edit src below) -->
+        <img class="overlay" id="coverOverlay" src="" alt="" hidden>
+
+        <div class="title-wrap">
+          <div>
+            <h1>Everything Helps</h1>
+            <h2>Buddy’s Story — Told by the Dog</h2>
+            <div class="hint">Drag to rotate • Double-tap to open</div>
+          </div>
+        </div>
+      </div>
+      <div class="back" aria-hidden="true"></div>
+      <div class="folio" id="folio"></div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">Swipe to flip pages • Tap a TOC link to jump</div>
+
+<script>
+(function(){
+/* ========= Optional: set a cover image via URL parameter =========
+   Example:  index.html?cover=https://your.cdn/buddy.png
+   Or set a default path below by editing defaultCover.
+*/
+const params = new URLSearchParams(location.search);
+const paramCover = params.get('cover');
+const defaultCover = ""; // e.g. "cover.png"
+const coverImg = document.getElementById('coverOverlay');
+const useCover = paramCover || defaultCover;
+if(useCover){
+  coverImg.src = useCover;
+  coverImg.hidden = false;
+}
+
+/* ========= FULL STORY (12 chapters; edit freely) ========= */
+const chapters = [
+  {title:"Table of Contents", html:`
+    <p><a href="#" data-go="1">1 — Shade and Sandwiches</a></p>
+    <p><a href="#" data-go="2">2 — Bridge Life</a></p>
+    <p><a href="#" data-go="3">3 — Daddy’s in Distress</a></p>
+    <p><a href="#" data-go="4">4 — Gas-Station Queens</a></p>
+    <p><a href="#" data-go="5">5 — A-O-K (The Kitten)</a></p>
+    <p><a href="#" data-go="6">6 — Rainy Day Royalties</a></p>
+    <p><a href="#" data-go="7">7 — Blue Lights & Heartbeats</a></p>
+    <p><a href="#" data-go="8">8 — Night Scratchers</a></p>
+    <p><a href="#" data-go="9">9 — Every Mile Matters</a></p>
+    <p><a href="#" data-go="10">10 — Everything Helps (Putting It Back)</a></p>
+    <p><a href="#" data-go="11">11 — Dollar General Diplomacy</a></p>
+    <p><a href="#" data-go="12">12 — Bridge at Midnight</a></p>
+  `},
+
+  {title:"Shade and Sandwiches", html:`
+    <p>I don’t really know the tall guy’s name. He’s the one who makes the shade. Wherever he stands, that’s where I fit. He holds a sign that says <strong>EVERYTHING HELPS</strong>. Sometimes hands appear from windows—fries, a nugget, a smile. That’s how the day starts: small miracles and a tail that keeps time.</p>
+    <p>He shares everything. I repay him by staying exactly where the shadow is coolest. That’s our deal.</p>
+  `},
+
+  {title:"Bridge Life", html:`
+    <p>The bridge smells like heat and rubber and stories. People wave when they know us and look away when they don’t. The ones who see, really see, hand over a sandwich or a single dollar. He thanks them like it’s gold; I crunch fries like it’s a ceremony.</p>
+    <p>By sunset the bridge turns into a necklace of small kindnesses. We wear it home.</p>
+  `},
+
+  {title:"Daddy’s in Distress", html:`
+    <p>Sometimes his breath gets small and his eyes look far. That’s when I lean hard into his leg. He puts a hand on my head like a switch and the lights come back on. I don’t know the math of it. I just know it works.</p>
+    <p>If something moves too fast or stares too long, I watch. That’s my part. He laughs and calls me security. I call it love with good posture.</p>
+  `},
+
+  {title:"Gas-Station Queens", html:`
+    <p>The ladies at the gas station say my name before the door closes. They’ve got tile for my belly and jokes for my guy. If anyone messed with me, I think the whole store would turn into a pack with aprons. It’s a kingdom of beep sounds and kindness.</p>
+  `},
+
+  {title:"A-O-K (The Kitten)", html:`
+    <p>There was a kitten near the pumps—shaking shadow, tiny engine. We scooped it up and the gas-station queens giggled “A-O-K.” A week later that same kitten strutted outside the loud restaurant like a tiny mayor. We don’t own much, but saving small lives makes us rich.</p>
+  `},
+
+  {title:"Rainy Day Royalties", html:`
+    <p>When rain comes hard, the doors swing open for us. Towel for him, jerky for me. We wait the storm out under humming lights and gossip, like royalty in rubber shoes. When we step back into the world, everything smells cleaner, even our worries.</p>
+  `},
+
+  {title:"Blue Lights & Heartbeats", html:`
+    <p>One night the blue lights stopped too close and his hands shook. An officer aimed the flashlight and said, “Hey, Buddy.” I wagged like I knew the script. The night stitched itself back together. Sometimes the right word fixes the whole page.</p>
+  `},
+
+  {title:"Night Scratchers", html:`
+    <p>Bugs argue with the dark and he mutters at both of them. I keep count of his breaths. If one skips, I nudge. If he talks to the quiet, I listen like it’s my job. The sun always shows up for roll call eventually.</p>
+  `},
+
+  {title:"Every Mile Matters", html:`
+    <p>We run—3.5 miles, sometimes 6—just to move the stuck thoughts around. He says running clears the clouds. I say running makes new smells. We come back lighter, which is funny because we are heavier with sweat. The math checks out anyway.</p>
+  `},
+
+  {title:"Everything Helps (Putting It Back)", html:`
+    <p>He spends what we get right here—burgers, coffee, fixes, bowls. He calls it returning the circuit. I call it leaving crumbs for tomorrow. It’s not charity; it’s community with receipts.</p>
+  `},
+
+  {title:"Dollar General Diplomacy", html:`
+    <p>At the dollar store the doors whisper “whoosh” like they know us. We grab what we need and a little something we don’t. People nod. Some days a nod is the warmest meal in town.</p>
+  `},
+
+  {title:"Bridge at Midnight", html:`
+    <p>Late, when the town is mostly quiet, we try the bridge again. Sometimes nobody stops. That’s okay. We run there and back just to feel like a comet with paws. He laughs, tells the air that tomorrow will be better. I lean into his leg to vote yes.</p>
+    <p>We walk home in the shade of streetlights that haven’t learned our names yet. They will.</p>
+  `}
+];
+
+/* Build page list: inside-left blank + TOC + chapters */
+const pages = [];
+pages.push({title:"", html:""});        // inside-left blank
+pages.push(chapters[0]);                // inside-right = TOC
+for(let i=1;i<chapters.length;i++) pages.push(chapters[i]);
+
+const folio = document.getElementById('folio');
+const book  = document.getElementById('book');
+const view  = document.getElementById('view');
+const cover = document.getElementById('frontCover');
+
+/* Build leaves (each leaf has left+right pages) */
+const leaves = [];
+const leafCount = Math.ceil(pages.length/2);
+for(let i=0;i<leafCount;i++){
+  const leaf = document.createElement('div');
+  leaf.className = 'leaf';
+  leaf.dataset.idx = i;
+  leaf.style.zIndex = String(500 - i);   // topmost is smallest i
+
+  const left  = document.createElement('div'); left.className='page left';
+  const right = document.createElement('div'); right.className='page right';
+
+  const lp = document.createElement('div'); lp.className='paper';
+  const rp = document.createElement('div'); rp.className='paper';
+
+  left.appendChild(lp); right.appendChild(rp);
+  leaf.appendChild(left); leaf.appendChild(right);
+  folio.appendChild(leaf);
+  leaves.push({leaf,left,right,lp,rp});
+}
+
+/* Fill content */
+let p=0;
+for(let i=0;i<leaves.length;i++){
+  const L = leaves[i];
+  const Lp = pages[p++] || {title:"",html:""};
+  const Rp = pages[p++] || {title:"",html:""};
+  L.lp.innerHTML = Lp.title ? `<div class="section-label">Page</div><h3>${Lp.title}</h3>${Lp.html}` : '';
+  L.rp.innerHTML = Rp.title ? `<div class="section-label">Page</div><h3>${Rp.title}</h3>${Rp.html}` : '';
+}
+
+/* Flip engine with z-index restack to prevent flicker/overlap */
+let currentIndex = 0;
+function restack(){
+  leaves.forEach((L,i)=>{
+    const flipped = L.leaf.classList.contains('flipped');
+    L.leaf.style.zIndex = flipped ? String(100 + i) : String(500 - i);
+  });
+}
+function flipNext(){
+  if(currentIndex >= leaves.length - 1) return;
+  leaves[currentIndex].leaf.classList.add('flipped');
+  currentIndex++; restack();
+}
+function flipPrev(){
+  if(currentIndex <= 0) return;
+  currentIndex--;
+  leaves[currentIndex].leaf.classList.remove('flipped');
+  restack();
+}
+
+/* Swipe (open only) */
+let swiping=false, sx=0;
+view.addEventListener('touchstart', (e)=>{
+  if(!book.classList.contains('open')) return;
+  swiping=true; sx=e.touches[0].clientX;
+}, {passive:true});
+view.addEventListener('touchend', (e)=>{
+  if(!book.classList.contains('open')||!swiping) return; swiping=false;
+  const ex = (e.changedTouches && e.changedTouches[0].clientX) || sx;
+  const dx = ex - sx;
+  if(Math.abs(dx) > 70){ dx<0 ? flipNext() : flipPrev(); }
+}, {passive:true});
+
+/* TOC jump */
+folio.addEventListener('click', (e)=>{
+  const a = e.target.closest('[data-go]');
+  if(!a) return;
+  e.preventDefault();
+  const goto = parseInt(a.dataset.go, 10);
+  const pageIndex = goto + 1;                  // pages[1] is TOC
+  const leafTarget = Math.floor(pageIndex/2);
+  leaves.forEach((L,i)=> L.leaf.classList.toggle('flipped', i < leafTarget));
+  currentIndex = leafTarget;
+  restack();
+});
+
+/* Rotation (closed only) */
+let rotateEnabled = true, dragging=false, lx=0, ly=0, rx=8, ry=-18;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function applyRot(){ book.style.transform=`rotateX(${rx}deg) rotateY(${ry}deg)`; }
+
+view.addEventListener('pointerdown', e=>{
+  if(!rotateEnabled) return;
+  dragging=true; lx=e.clientX; ly=e.clientY;
+  view.setPointerCapture(e.pointerId); view.classList.add('grabbing');
+});
+view.addEventListener('pointermove', e=>{
+  if(!dragging || !rotateEnabled) return;
+  const dx=e.clientX-lx, dy=e.clientY-ly;
+  ry = clamp(ry + dx*0.14, -40, 40);
+  rx = clamp(rx - dy*0.09, -12, 25);
+  applyRot(); lx=e.clientX; ly=e.clientY;
+});
+window.addEventListener('pointerup', ()=>{ dragging=false; view.classList.remove('grabbing'); });
+
+/* Open (double-tap on cover) */
+function openBook(){
+  if(book.classList.contains('open')) return;
+  book.classList.add('open');
+  rotateEnabled = false;                 // lock rotation
+  book.style.transform='rotateX(0) rotateY(0)';
+  // ensure start at inside cover (TOC on right)
+  leaves.forEach((L)=> L.leaf.classList.remove('flipped'));
+  currentIndex = 0; restack();
+}
+// robust dbl-tap: native + timing window
+cover.addEventListener('dblclick', openBook);
+let tapTime=0;
+cover.addEventListener('click', ()=>{
+  const now=performance.now();
+  if(now - tapTime < 400) openBook();
+  tapTime = now;
+});
+
+// init
+restack();
+})();
+</script>
+</body>
+</html>
